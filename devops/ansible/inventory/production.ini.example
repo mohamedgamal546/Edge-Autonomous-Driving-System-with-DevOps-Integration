@@ -1,0 +1,11 @@
+# ── Production Inventory ──────────────────────────────────────────────────────
+# Copy this file and fill in your Raspberry Pi details.
+# DO NOT commit the real production.ini to git (it's in .gitignore).
+#
+# cp inventory/production.ini.example inventory/production.ini
+
+[raspberry_pi]
+192.168.1.100 ansible_user=pi ansible_ssh_private_key_file=~/.ssh/pi_deploy_key
+
+[raspberry_pi:vars]
+ansible_python_interpreter=/usr/bin/python3

@@ -1,0 +1,73 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  Multi-stage Dockerfile for all Python microservices
+#  Build arg SERVICE_NAME selects which service to package.
+#  Optimised for Raspberry Pi 4 (linux/arm64).
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── Stage 1: Build dependencies ───────────────────────────────────────────────
+FROM python:3.11-slim AS builder
+
+ARG SERVICE_NAME
+ENV SERVICE_NAME=${SERVICE_NAME}
+
+WORKDIR /build
+
+# System deps for OpenCV
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender-dev \
+        libgl1-mesa-glx \
+        libgstreamer1.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+
+# ── Stage 2: Runtime image ────────────────────────────────────────────────────
+FROM python:3.11-slim AS runtime
+
+ARG SERVICE_NAME
+ENV SERVICE_NAME=${SERVICE_NAME} \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/root/.local/bin:$PATH"
+
+WORKDIR /app
+
+# Runtime system deps only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libgl1-mesa-glx \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /root/.local /root/.local
+
+# Copy only the relevant service
+COPY services/${SERVICE_NAME}/ /app/
+
+# Non-root user for security
+RUN groupadd -r caruser && useradd -r -g caruser caruser \
+    && chown -R caruser:caruser /app
+
+USER caruser
+
+# Expose Prometheus metrics port (overridden per service in compose)
+EXPOSE 8001
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:${METRICS_PORT:-8001}/metrics || exit 1
+
+# Use shell form so $SERVICE_NAME is expanded at container start time
+CMD python -u ${SERVICE_NAME}_service.py
+
+# ── Build example ─────────────────────────────────────────────────────────────
+# docker build --build-arg SERVICE_NAME=camera -t autonomous-car/camera:latest .
+# docker build --build-arg SERVICE_NAME=lane_detection -t autonomous-car/lane:latest .

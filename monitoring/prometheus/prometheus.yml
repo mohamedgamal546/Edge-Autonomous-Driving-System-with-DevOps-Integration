@@ -1,0 +1,78 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  Prometheus Configuration — Edge Autonomous Driving System
+#  Scrapes metrics from all 6 Python microservices every 5 seconds.
+# ════════════════════════════════════════════════════════════════════════════
+
+global:
+  scrape_interval:     5s      # Scrape every 5 s (fast for real-time car data)
+  evaluation_interval: 5s
+  scrape_timeout:      4s
+
+  external_labels:
+    project: "autonomous-car"
+    environment: "edge"
+
+# ── Alerting rules file ───────────────────────────────────────────────────────
+rule_files:
+  - "alerts.yml"
+
+scrape_configs:
+
+  # ── Prometheus self-monitoring ─────────────────────────────────────────────
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # ── Camera Service ─────────────────────────────────────────────────────────
+  - job_name: "camera"
+    static_configs:
+      - targets: ["camera:8001"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: "camera"
+
+  # ── Lane Detection Service ─────────────────────────────────────────────────
+  - job_name: "lane_detection"
+    static_configs:
+      - targets: ["lane_detection:8002"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: "lane_detection"
+
+  # ── Obstacle Detection Service ─────────────────────────────────────────────
+  - job_name: "obstacle_detection"
+    static_configs:
+      - targets: ["obstacle_detection:8003"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: "obstacle_detection"
+
+  # ── Traffic Light Service ──────────────────────────────────────────────────
+  - job_name: "traffic_light"
+    static_configs:
+      - targets: ["traffic_light:8004"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: "traffic_light"
+
+  # ── Control Service ────────────────────────────────────────────────────────
+  - job_name: "control"
+    static_configs:
+      - targets: ["control:8005"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: "control"
+
+  # ── System Monitor ─────────────────────────────────────────────────────────
+  - job_name: "system_monitor"
+    static_configs:
+      - targets: ["system_monitor:8006"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: "system_monitor"

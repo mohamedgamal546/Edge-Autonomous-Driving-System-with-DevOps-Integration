@@ -1,0 +1,200 @@
+{
+  "id": null,
+  "uid": "autonomous-car-overview",
+  "title": "🚗 Autonomous Car — System Overview",
+  "description": "Real-time monitoring for Edge Autonomous Driving System",
+  "tags": ["autonomous", "raspberry-pi", "cv"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-5m", "to": "now" },
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "id": 1,
+      "title": "System Health",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "targets": [{
+        "expr": "system_healthy",
+        "legendFormat": "System"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "text": "DEGRADED", "color": "red" }, "1": { "text": "HEALTHY", "color": "green" }}, "type": "value" }
+          ],
+          "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "green", "value": 1 }] }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Services Online",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "targets": [{
+        "expr": "sum(service_up_camera + service_up_lane + service_up_traffic + service_up_obstacle + service_up_control)",
+        "legendFormat": "Online"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "orange", "value": 3 }, { "color": "green", "value": 5 }] }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Camera FPS",
+      "type": "gauge",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "targets": [{ "expr": "camera_fps_current", "legendFormat": "FPS" }],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 30, "unit": "short",
+          "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "orange", "value": 8 }, { "color": "green", "value": 12 }] }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Current Steering Angle",
+      "type": "gauge",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "targets": [{ "expr": "control_steering_angle", "legendFormat": "Angle °" }],
+      "fieldConfig": {
+        "defaults": {
+          "min": 40, "max": 140, "unit": "degree",
+          "thresholds": { "steps": [{ "color": "green", "value": 40 }, { "color": "yellow", "value": 120 }, { "color": "red", "value": 135 }] }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Drive Speed (PWM %)",
+      "type": "gauge",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "targets": [{ "expr": "control_speed_pwm", "legendFormat": "Speed" }],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "percent",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "orange", "value": 70 }, { "color": "red", "value": 90 }] }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Obstacle Distance (cm)",
+      "type": "gauge",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+      "targets": [{ "expr": "obstacle_distance_cm", "legendFormat": "Distance" }],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 300, "unit": "lengthcm",
+          "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "orange", "value": 30 }, { "color": "yellow", "value": 60 }, { "color": "green", "value": 100 }] }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Lane Offset Over Time",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "lane_offset_normalized", "legendFormat": "Lane Offset" },
+        { "expr": "control_lane_offset",    "legendFormat": "Control Offset" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": -1, "max": 1, "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "thresholds": { "steps": [{ "color": "green", "value": -0.2 }, { "color": "orange", "value": 0.5 }, { "color": "red", "value": 0.8 }] }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Detection Events (Rate/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "rate(lane_detected_total[1m]) * 60",      "legendFormat": "Lane Detected" },
+        { "expr": "rate(lane_lost_total[1m]) * 60",          "legendFormat": "Lane Lost" },
+        { "expr": "rate(obstacle_detected_total[1m]) * 60",  "legendFormat": "Obstacle" },
+        { "expr": "rate(traffic_red_detected_total[1m]) * 60","legendFormat": "Red Light" },
+        { "expr": "rate(traffic_green_detected_total[1m]) * 60","legendFormat": "Green Light" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Frame Processing Latency (p99)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+      "targets": [
+        { "expr": "histogram_quantile(0.99, rate(lane_processing_seconds_bucket[1m])) * 1000",      "legendFormat": "Lane p99 (ms)" },
+        { "expr": "histogram_quantile(0.99, rate(obstacle_processing_seconds_bucket[1m])) * 1000", "legendFormat": "Obstacle p99 (ms)" },
+        { "expr": "histogram_quantile(0.99, rate(traffic_processing_seconds_bucket[1m])) * 1000",  "legendFormat": "Traffic p99 (ms)" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms", "custom": { "lineWidth": 2 } }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Frames Published (Camera)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+      "targets": [
+        { "expr": "rate(camera_frames_published_total[30s]) * 30", "legendFormat": "Frames/30s" },
+        { "expr": "rate(camera_frame_errors_total[30s]) * 30",     "legendFormat": "Errors/30s" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Service Up Status",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 18, "w": 24, "h": 4 },
+      "targets": [
+        { "expr": "service_up_camera",   "legendFormat": "Camera" },
+        { "expr": "service_up_lane",     "legendFormat": "Lane Detection" },
+        { "expr": "service_up_traffic",  "legendFormat": "Traffic Light" },
+        { "expr": "service_up_obstacle", "legendFormat": "Obstacle" },
+        { "expr": "service_up_control",  "legendFormat": "Control" }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "text": "↓ OFFLINE", "color": "red" }, "1": { "text": "↑ ONLINE", "color": "green" }}, "type": "value" }
+          ]
+        }
+      }
+    }
+  ]
+}

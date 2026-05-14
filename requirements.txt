@@ -1,0 +1,16 @@
+# ── Core computer vision ──────────────────────────────────────────────────────
+opencv-python-headless==4.9.0.80
+numpy==1.26.4
+
+# ── MQTT ──────────────────────────────────────────────────────────────────────
+paho-mqtt==1.6.1
+
+# ── Observability ─────────────────────────────────────────────────────────────
+prometheus-client==0.20.0
+
+# ── Raspberry Pi GPIO (install only on Pi hardware) ───────────────────────────
+# RPi.GPIO==0.7.1    ← uncomment on Raspberry Pi
+# picamera2==0.3.19  ← uncomment if using Pi Camera Module v3
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv==1.0.1

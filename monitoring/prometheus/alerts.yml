@@ -1,0 +1,48 @@
+groups:
+  - name: autonomous_car_alerts
+    rules:
+
+      - alert: ServiceDown
+        expr: service_up_camera == 0 or service_up_lane == 0 or service_up_control == 0
+        for: 10s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical service is down"
+          description: "One or more critical services are offline."
+
+      - alert: LaneLostTooLong
+        expr: rate(lane_lost_total[30s]) > 0.5
+        for: 5s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Lane detection lost"
+          description: "Lane is not being detected reliably."
+
+      - alert: ObstacleDetected
+        expr: obstacle_present == 1
+        for: 1s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Obstacle in path"
+          description: "An obstacle has been detected in the vehicle's path."
+
+      - alert: LowCameraFPS
+        expr: camera_fps_current < 5
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Camera FPS critically low"
+          description: "Camera is running below 5 FPS — vision pipeline may be degraded."
+
+      - alert: SystemDegraded
+        expr: system_healthy == 0
+        for: 15s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Autonomous car system degraded"
+          description: "Not all services are online. Check Grafana for details."

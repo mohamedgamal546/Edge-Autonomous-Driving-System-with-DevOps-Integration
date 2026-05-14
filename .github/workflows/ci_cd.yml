@@ -1,0 +1,200 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  CI/CD Pipeline — Edge Autonomous Driving System
+#  Triggers: push to main/develop, pull requests to main
+#
+#  Jobs:
+#    1. lint        → flake8 + black format check
+#    2. test        → pytest unit tests
+#    3. build       → Docker multi-arch images (amd64 + arm64 for Pi)
+#    4. push        → Push images to GitHub Container Registry (main only)
+#    5. deploy      → Ansible deployment to Raspberry Pi (main only)
+# ════════════════════════════════════════════════════════════════════════════
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BASE: ${{ github.repository_owner }}/autonomous-car
+
+jobs:
+
+  # ── Job 1: Lint ─────────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install lint tools
+        run: pip install flake8 black isort
+
+      - name: Black format check
+        run: black --check --diff services/
+
+      - name: isort import order
+        run: isort --check-only --diff services/
+
+      - name: Flake8 style check
+        run: |
+          flake8 services/ \
+            --max-line-length=100 \
+            --extend-ignore=E203,W503 \
+            --per-file-ignores="__init__.py:F401"
+
+  # ── Job 2: Tests ─────────────────────────────────────────────────────────────
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-mock
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ \
+            --cov=services \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -v
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage.xml
+          fail_ci_if_error: false
+
+  # ── Job 3: Build Docker images ────────────────────────────────────────────────
+  build:
+    name: Build Docker Images (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      matrix:
+        service:
+          - camera
+          - lane_detection
+          - obstacle_detection
+          - traffic_light
+          - control
+          - system_monitor
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (for ARM64 cross-build)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: devops/docker/Dockerfile.service
+          build-args: SERVICE_NAME=${{ matrix.service }}
+          platforms: linux/amd64,linux/arm64   # amd64 for dev, arm64 for Raspberry Pi
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Job 4: Deploy to Raspberry Pi (main branch only) ─────────────────────────
+  deploy:
+    name: Deploy to Raspberry Pi
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: |
+          pip install ansible
+          ansible --version
+
+      - name: Write SSH private key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PI_SSH_KEY }}" > ~/.ssh/pi_deploy_key
+          chmod 600 ~/.ssh/pi_deploy_key
+          ssh-keyscan -H ${{ secrets.PI_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Write Ansible inventory
+        run: |
+          cat > devops/ansible/inventory/production.ini << EOF
+          [raspberry_pi]
+          ${{ secrets.PI_HOST }} ansible_user=${{ secrets.PI_USER }} ansible_ssh_private_key_file=~/.ssh/pi_deploy_key
+          EOF
+
+      - name: Run Ansible deployment playbook
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          APP_VERSION: ${{ github.sha }}
+        run: |
+          ansible-playbook \
+            -i devops/ansible/inventory/production.ini \
+            devops/ansible/deploy.yml \
+            --extra-vars "app_version=${{ github.sha }} registry=${{ env.REGISTRY }} image_base=${{ env.IMAGE_BASE }}" \
+            -v
+
+      - name: Verify deployment health
+        run: |
+          ssh -i ~/.ssh/pi_deploy_key \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.PI_USER }}@${{ secrets.PI_HOST }} \
+              "cd ~/autonomous-car && docker compose ps && docker compose logs --tail=20 system_monitor"
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "✅ Deployment successful — version ${{ github.sha }} is live on Raspberry Pi"
+
+      - name: Notify deployment failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed — check logs above"

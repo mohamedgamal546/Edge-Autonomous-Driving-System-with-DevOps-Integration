@@ -1,0 +1,62 @@
+---
+# ════════════════════════════════════════════════════════════════════════════
+#  Ansible Deployment Playbook — Edge Autonomous Driving System
+#  Deploys all Docker services to Raspberry Pi via SSH.
+#
+#  Usage:
+#    ansible-playbook -i inventory/production.ini deploy.yml
+# ════════════════════════════════════════════════════════════════════════════
+
+- name: Deploy Autonomous Car System to Raspberry Pi
+  hosts: raspberry_pi
+  become: true
+  vars:
+    app_dir: /home/{{ ansible_user }}/autonomous-car
+    compose_file: "{{ app_dir }}/docker-compose.yml"
+    app_version: "latest"
+
+  pre_tasks:
+    - name: Verify target is Raspberry Pi
+      ansible.builtin.assert:
+        that:
+          - ansible_architecture in ["aarch64", "armv7l"]
+        fail_msg: "This playbook is intended for Raspberry Pi (ARM) only"
+      ignore_errors: true   # Remove to enforce strictly
+
+    - name: Check available disk space (need ≥ 2 GB)
+      ansible.builtin.shell: df --output=avail -BG / | tail -1 | tr -d 'G'
+      register: disk_avail
+      changed_when: false
+
+    - name: Fail if insufficient disk space
+      ansible.builtin.fail:
+        msg: "Insufficient disk space: {{ disk_avail.stdout }}GB available, need ≥ 2GB"
+      when: disk_avail.stdout | int < 2
+
+  roles:
+    - role: app
+    - role: monitoring
+
+  post_tasks:
+    - name: Wait for all services to become healthy (60 s)
+      ansible.builtin.pause:
+        seconds: 60
+
+    - name: Verify all containers are running
+      ansible.builtin.shell: |
+        cd {{ app_dir }}
+        docker compose ps --format json | python3 -c "
+        import json, sys
+        services = [json.loads(l) for l in sys.stdin]
+        failed = [s['Name'] for s in services if s.get('State') != 'running']
+        if failed:
+            print('FAILED:', ', '.join(failed))
+            sys.exit(1)
+        print('ALL OK:', len(services), 'services running')
+        "
+      register: health_check
+      changed_when: false
+
+    - name: Show deployment result
+      ansible.builtin.debug:
+        msg: "{{ health_check.stdout }}"

@@ -1,0 +1,15 @@
+---
+# ── Role: monitoring — ensure Prometheus + Grafana are running ────────────────
+
+- name: Verify monitoring containers are healthy
+  ansible.builtin.shell: |
+    docker inspect --format='{{.State.Health.Status}}' prometheus 2>/dev/null || echo "not_found"
+  register: prometheus_health
+  changed_when: false
+
+- name: Restart monitoring stack if unhealthy
+  ansible.builtin.shell: |
+    cd {{ app_dir }}
+    docker compose restart prometheus grafana
+  when: prometheus_health.stdout != "healthy"
+  become_user: "{{ ansible_user }}"

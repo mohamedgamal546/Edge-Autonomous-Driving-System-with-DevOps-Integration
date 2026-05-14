@@ -1,0 +1,122 @@
+---
+# ── Role: app — Install Docker, deploy compose stack ─────────────────────────
+
+- name: Install required packages
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - docker-compose-v2
+      - python3-pip
+      - git
+      - curl
+    state: present
+    update_cache: true
+
+- name: Add user to docker group
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: true
+
+- name: Enable and start Docker service
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Enable Docker to start at boot
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+
+- name: Create app directory
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Copy project files to Pi
+  ansible.builtin.synchronize:
+    src: "{{ playbook_dir }}/../../"
+    dest: "{{ app_dir }}/"
+    delete: true
+    rsync_opts:
+      - "--exclude=.git"
+      - "--exclude=__pycache__"
+      - "--exclude=*.pyc"
+      - "--exclude=.env"
+
+- name: Write .env file with app version
+  ansible.builtin.copy:
+    dest: "{{ app_dir }}/.env"
+    content: |
+      APP_VERSION={{ app_version }}
+      REGISTRY={{ registry | default('ghcr.io') }}
+    owner: "{{ ansible_user }}"
+    mode: "0600"
+
+- name: Log in to container registry
+  ansible.builtin.shell: |
+    echo "{{ registry_token | default('') }}" | \
+    docker login {{ registry | default('ghcr.io') }} \
+      --username {{ registry_user | default(ansible_user) }} \
+      --password-stdin
+  when: registry_token is defined
+  no_log: true
+
+- name: Pull latest images
+  ansible.builtin.shell: |
+    cd {{ app_dir }}
+    docker compose pull
+  become_user: "{{ ansible_user }}"
+  register: pull_result
+  changed_when: "'Pull complete' in pull_result.stdout"
+
+- name: Stop existing stack (zero-downtime prep)
+  ansible.builtin.shell: |
+    cd {{ app_dir }}
+    docker compose down --remove-orphans --timeout 30
+  become_user: "{{ ansible_user }}"
+  ignore_errors: true
+
+- name: Start the full stack
+  ansible.builtin.shell: |
+    cd {{ app_dir }}
+    docker compose up -d --force-recreate
+  become_user: "{{ ansible_user }}"
+  register: deploy_result
+
+- name: Show compose output
+  ansible.builtin.debug:
+    msg: "{{ deploy_result.stdout_lines[-10:] }}"
+
+- name: Install systemd service for auto-start on Pi boot
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/autonomous-car.service
+    content: |
+      [Unit]
+      Description=Autonomous Car Docker Compose Stack
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      WorkingDirectory={{ app_dir }}
+      ExecStart=/usr/bin/docker compose up -d
+      ExecStop=/usr/bin/docker compose down
+      TimeoutStartSec=120
+      User={{ ansible_user }}
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: "0644"
+
+- name: Enable autonomous-car systemd service
+  ansible.builtin.systemd:
+    name: autonomous-car
+    enabled: true
+    daemon_reload: true
