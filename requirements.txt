@@ -13,4 +13,4 @@ prometheus-client==0.20.0
 # picamera2==0.3.19  ← uncomment if using Pi Camera Module v3
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
-python-dotenv==1.0.1
+python-dotenv==1.2.2
