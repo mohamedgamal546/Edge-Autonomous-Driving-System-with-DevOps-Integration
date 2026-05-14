@@ -1,15 +1,24 @@
-# 🚗 Edge Autonomous Driving System
+# 🚗 Edge Autonomous Driving System (Raspberry Pi 4 + DevOps + Computer Vision)
 > A fully containerised, microservices-based autonomous vehicle built on Raspberry Pi 4 with end-to-end DevOps integration.
 
 ---
 
 ## 📌 Overview
 
-This system enables a physical car to drive autonomously by combining real-time computer vision, sensor fusion, and hardware motor control — all running **on the edge** (Raspberry Pi 4) with zero cloud dependency.
+A fully containerized, edge-based autonomous driving system built on Raspberry Pi 4, combining Computer Vision, Embedded Systems, and DevOps practices in a production-style microservices architecture.
 
 Every perception algorithm runs as an isolated Python microservice that communicates asynchronously via **Mosquitto MQTT**. The entire stack is containerised with **Docker**, deployed with **Ansible**, monitored with **Prometheus + Grafana**, and continuously delivered via **GitHub Actions**.
 
 ---
+
+🧰 Tech Stack
+
+Programming: Python, OpenCV  
+Edge Device: Raspberry Pi 4  
+Communication: MQTT (Mosquitto)  
+DevOps: Docker, Docker Compose, Ansible, GitHub Actions  
+Monitoring: Prometheus, Grafana  
+Hardware Control: GPIO, L298N, Servo Motors  
 
 ## 🏗️ System Architecture
 
@@ -181,7 +190,8 @@ Push to main/develop
        ▼
   ┌─────────────────────────────────────┐
   │  Build (matrix: 6 services)         │
-  │  linux/amd64 + linux/arm64 (Pi)     │
+  │  Multi-architecture builds (linux/
+    amd64, linux/arm64 for Raspberry Pi)|
   │  Push → GitHub Container Registry   │
   └────┬────────────────────────────────┘
        │  (main branch only)
