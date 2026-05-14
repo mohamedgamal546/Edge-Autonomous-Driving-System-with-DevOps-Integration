@@ -1,6 +1,4 @@
 # 🚗 Edge Autonomous Driving System
-
-> **Graduation Project — Grade: Excellent (A+)**  
 > A fully containerised, microservices-based autonomous vehicle built on Raspberry Pi 4 with end-to-end DevOps integration.
 
 ---
@@ -290,6 +288,4 @@ MIT License — see [LICENSE](LICENSE)
 
 ## 👤 Author
 
-**[Your Name]**  
-Computer Engineering — Graduation Project 2024/2025  
-Grade: **Excellent (A+)**
+Mohamed Gamal Nasser  
